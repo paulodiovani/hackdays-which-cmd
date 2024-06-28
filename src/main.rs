@@ -29,7 +29,6 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn error::Error>> {
     let args = Args::parse();
-    println!("{:?}", &args);
 
     let count: usize = args.count.into();
     let ignore: Vec<String> = args.ignore;
