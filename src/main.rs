@@ -93,6 +93,10 @@ fn filter_ignored(mut lines: Vec<String>, ignore: Vec<String>) -> Vec<String> {
 }
 
 fn filter_searched(lines: Vec<String>, search: Vec<String>, min_score: i64) -> Vec<String> {
+    if search.len() == 0 {
+        return lines;
+    }
+
     let search: String = search.join(" ");
     let matcher = SkimMatcherV2::default();
 
