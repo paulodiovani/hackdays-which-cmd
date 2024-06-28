@@ -15,17 +15,19 @@ struct Args {
     count: u8,
 
     /// List of commands to ignore
-    #[arg(short, long)]
-    ignore: Option<String>,
+    #[arg(short, long, value_delimiter = ',')]
+    ignore: Vec<String>,
 
-    /// Optional name of command to search
-    name: Option<String>,
+    /// Optional search for commands
+    search: Vec<String>,
 }
 
 fn main() -> Result<(), Box<dyn error::Error>> {
     let args = Args::parse();
+    println!("{:?}", &args);
+
     let count: usize = args.count.into();
-    let ignore: Option<String> = args.ignore;
+    let ignore: Vec<String> = args.ignore;
 
     let histfile = history_file().expect("This program supports: `bash`, `zsh`.");
     let lines = read_lines_sorted(histfile)?;
@@ -75,20 +77,20 @@ fn cleanup_zsh(lines: Vec<String>) -> Vec<String> {
     }).collect()
 }
 
-fn filter_ignored(lines: Vec<String>, ignore: Option<String>) -> Vec<String> {
-    let mut filtered_lines: Vec<String> = lines;
-
-    let ignore_list: Vec<&str> = match &ignore {
-        Some(text) => text.split(',').collect(),
-        None => vec![],
-    };
-
-    for word in ignore_list {
-        filtered_lines = filtered_lines.iter().filter(|l| !l.starts_with(word)).map(|l| l.to_string()).collect();
+fn filter_ignored(mut lines: Vec<String>, ignore: Vec<String>) -> Vec<String> {
+    for word in ignore {
+        lines = lines.iter().filter(|l| !l.starts_with(word.as_str())).map(|l| l.to_string()).collect();
     }
 
-    filtered_lines
+    lines
 }
+
+// fn filter_search(lines: Vec<String>, search: Vec<String>) -> Vec<String> {
+//     let search: String = search.join(" ");
+//     let matcher = SkimMatcherV2::default();
+//
+//
+// }
 
 fn history_file() -> Result<String, UnkownShell> {
     let home = env!("HOME");
