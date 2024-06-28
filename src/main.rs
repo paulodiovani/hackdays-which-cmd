@@ -5,7 +5,7 @@ use std::{cmp, collections::HashMap, error, fs::File, io::{self, Read}, u32};
 struct UnkownShell;
 
 #[derive(Debug)]
-struct CommandUsage(String, u32);
+struct CommandTable(String, u32);
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -13,15 +13,24 @@ struct Args {
     /// Number commands to print
     #[arg(short, long, default_value_t = 5)]
     count: u8,
+
+    /// List of commands to ignore
+    #[arg(short, long)]
+    ignore: Option<String>,
+
+    /// Optional name of command to search
+    name: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn error::Error>> {
     let args = Args::parse();
     let count: usize = args.count.into();
+    let ignore: Option<String> = args.ignore;
 
     let histfile = history_file().expect("This program supports: `bash`, `zsh`.");
     let lines = read_lines_sorted(histfile)?;
     let lines = cleanup(lines);
+    let lines = filter_ignored(lines, ignore);
     let lines = sort(lines);
 
     let table = build_command_table(lines);
@@ -30,7 +39,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     Ok(())
 }
 
-fn build_command_table(lines: Vec<String>) -> Vec<CommandUsage> {
+fn build_command_table(lines: Vec<String>) -> Vec<CommandTable> {
     let mut hash: HashMap<String, u32> = HashMap::new();
 
     for line in lines {
@@ -38,7 +47,7 @@ fn build_command_table(lines: Vec<String>) -> Vec<CommandUsage> {
         *count += 1;
     }
 
-    let mut commands: Vec<CommandUsage> = hash.iter().map(|(k, v)| CommandUsage(k.to_string(), *v)).collect();
+    let mut commands: Vec<CommandTable> = hash.iter().map(|(k, v)| CommandTable(k.to_string(), *v)).collect();
     commands.sort_by(|a, b| b.1.cmp(&a.1));
     commands
 }
@@ -66,6 +75,21 @@ fn cleanup_zsh(lines: Vec<String>) -> Vec<String> {
     }).collect()
 }
 
+fn filter_ignored(lines: Vec<String>, ignore: Option<String>) -> Vec<String> {
+    let mut filtered_lines: Vec<String> = lines;
+
+    let ignore_list: Vec<&str> = match &ignore {
+        Some(text) => text.split(',').collect(),
+        None => vec![],
+    };
+
+    for word in ignore_list {
+        filtered_lines = filtered_lines.iter().filter(|l| !l.starts_with(word)).map(|l| l.to_string()).collect();
+    }
+
+    filtered_lines
+}
+
 fn history_file() -> Result<String, UnkownShell> {
     let home = env!("HOME");
     let shell = env!("SHELL");
@@ -77,7 +101,7 @@ fn history_file() -> Result<String, UnkownShell> {
     }
 }
 
-fn print_command_table(table: Vec<CommandUsage>, count: usize) {
+fn print_command_table(table: Vec<CommandTable>, count: usize) {
     let max_count = cmp::min(table.len() / 2, count);
 
     println!("Here are your {} most used commands:\n", max_count);
