@@ -1,4 +1,5 @@
 use clap::Parser;
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use std::{cmp, collections::HashMap, error, fs::File, io::{self, Read}, u32};
 
 #[derive(Debug)]
@@ -18,6 +19,10 @@ struct Args {
     #[arg(short, long, value_delimiter = ',')]
     ignore: Vec<String>,
 
+    /// Minimum score for fuzzy search
+    #[arg(short, long, default_value_t = 40)]
+    score: i64,
+
     /// Optional search for commands
     search: Vec<String>,
 }
@@ -28,12 +33,14 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
     let count: usize = args.count.into();
     let ignore: Vec<String> = args.ignore;
+    let score: i64 = args.score;
+    let search: Vec<String> = args.search;
 
     let histfile = history_file().expect("This program supports: `bash`, `zsh`.");
     let lines = read_lines_sorted(histfile)?;
     let lines = cleanup(lines);
     let lines = filter_ignored(lines, ignore);
-    let lines = sort(lines);
+    let lines = filter_searched(lines, search, score);
 
     let table = build_command_table(lines);
 
@@ -85,12 +92,19 @@ fn filter_ignored(mut lines: Vec<String>, ignore: Vec<String>) -> Vec<String> {
     lines
 }
 
-// fn filter_search(lines: Vec<String>, search: Vec<String>) -> Vec<String> {
-//     let search: String = search.join(" ");
-//     let matcher = SkimMatcherV2::default();
-//
-//
-// }
+fn filter_searched(lines: Vec<String>, search: Vec<String>, min_score: i64) -> Vec<String> {
+    let search: String = search.join(" ");
+    let matcher = SkimMatcherV2::default();
+
+    let lines = lines.iter().filter(|line| {
+        match matcher.fuzzy_match(line, search.as_str()) {
+            Some(score) => score >= min_score,
+            None => false,
+        }
+    }).map(String::to_string).collect();
+
+    lines
+}
 
 fn history_file() -> Result<String, UnkownShell> {
     let home = env!("HOME");
@@ -132,10 +146,4 @@ fn read_lines_sorted(file: String) -> Result<Vec<String>, io::Error> {
     let lines: Vec<String> = contents.lines().map(String::from).collect();
 
     Ok(lines)
-}
-
-fn sort(lines: Vec<String>) -> Vec<String> {
-    let mut lines = lines;
-    lines.sort();
-    lines
 }
