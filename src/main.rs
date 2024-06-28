@@ -8,12 +8,26 @@ struct UnkownShell;
 #[derive(Debug)]
 struct CommandTable(String, u32);
 
+#[derive(Debug)]
+enum SearchMethod {
+    Exact,
+    Fuzzy,
+}
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
     /// Number commands to print
     #[arg(short, long, default_value_t = 5)]
     count: u8,
+
+    /// Use exact search match
+    #[arg(long)]
+    exact: bool,
+
+    /// Use fuzzy search match (default)
+    #[arg(long)]
+    fuzzy: bool,
 
     /// List of commands to ignore
     #[arg(short, long, value_delimiter = ',')]
@@ -34,12 +48,13 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let ignore: Vec<String> = args.ignore;
     let score: i64 = args.score;
     let search: Vec<String> = args.search;
+    let search_method = if args.exact && !args.fuzzy { SearchMethod::Exact } else { SearchMethod::Fuzzy };
 
     let histfile = history_file().expect("This program supports: `bash`, `zsh`.");
     let lines = read_lines_sorted(histfile)?;
     let lines = cleanup(lines);
     let lines = filter_ignored(lines, ignore);
-    let lines = filter_searched(lines, search, score);
+    let lines = filter_searched(lines, search, score, search_method);
 
     let table = build_command_table(lines);
 
@@ -91,16 +106,30 @@ fn filter_ignored(mut lines: Vec<String>, ignore: Vec<String>) -> Vec<String> {
     lines
 }
 
-fn filter_searched(lines: Vec<String>, search: Vec<String>, min_score: i64) -> Vec<String> {
+fn filter_searched(lines: Vec<String>, search: Vec<String>, min_score: i64, method: SearchMethod) -> Vec<String> {
     if search.len() == 0 {
         return lines;
     }
 
+    match method {
+        SearchMethod::Exact => filter_exact(lines, search),
+        SearchMethod::Fuzzy => filter_fuzzy(lines, search, min_score),
+    }
+}
+
+fn filter_exact(lines: Vec<String>, search: Vec<String>) -> Vec<String> {
     let search: String = search.join(" ");
-    let matcher = SkimMatcherV2::default();
+    let lines = lines.iter().filter(|line| line.contains(search.as_str())).map(String::to_string).collect();
+
+    lines
+}
+
+fn filter_fuzzy(lines: Vec<String>, search: Vec<String>, min_score: i64) -> Vec<String> {
+    let search: String = search.join(" ");
+    let fuzzy_finder = SkimMatcherV2::default();
 
     let lines = lines.iter().filter(|line| {
-        match matcher.fuzzy_match(line, search.as_str()) {
+        match fuzzy_finder.fuzzy_match(line, search.as_str()) {
             Some(score) => score >= min_score,
             None => false,
         }
