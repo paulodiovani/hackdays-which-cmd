@@ -15,7 +15,7 @@ enum SearchMethod {
 }
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(version, about = "Which command I used before to achieve that? 🤔")]
 struct Args {
     /// Number commands to print
     #[arg(short, long, default_value_t = 5)]
