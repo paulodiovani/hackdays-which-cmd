@@ -1,6 +1,5 @@
+use clap::Parser;
 use std::{cmp, collections::HashMap, error, fs::File, io::{self, Read}, u32};
-
-const DEFAULT_COUNT: usize = 5;
 
 #[derive(Debug)]
 struct UnkownShell;
@@ -8,8 +7,17 @@ struct UnkownShell;
 #[derive(Debug)]
 struct CommandUsage(String, u32);
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Number commands to print
+    #[arg(short, long, default_value_t = 5)]
+    count: u8,
+}
+
 fn main() -> Result<(), Box<dyn error::Error>> {
-    let count = DEFAULT_COUNT;
+    let args = Args::parse();
+    let count: usize = args.count.into();
 
     let histfile = history_file().expect("This program supports: `bash`, `zsh`.");
     let lines = read_lines_sorted(histfile)?;
@@ -18,11 +26,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
     let table = build_command_table(lines);
 
-    // println!("{}", lines.join("\n"));
-    // println!("{:?}", table);
-
     print_command_table(table, count);
-
     Ok(())
 }
 
